@@ -50,10 +50,10 @@ pipeline {
                 nexusArtifactUploader(
                     nexusVersion: 'nexus3',
                     protocol: 'http',
-                    nexusUrl: '192.168.100.6:8081',
+                    nexusUrl: '192.168.1.90:8081',
                     groupId: 'QA',
                     version: """${env.BUILD_ID}-${env.BUILD_TIMESTAMP}""",
-                    repository: 'maven-demo-app',
+                    repository: 'td-maven-repo',
                     credentialsId: 'nexus-auth',
                     artifacts: [
                         [artifactId: 'webApp',
@@ -75,7 +75,7 @@ pipeline {
                 ]
                 def resultColor = COLOR_MAP[currentBuild.currentResult.toString()]
                 slackSend(
-                    channel: '#tarea-clase-10', 
+                    channel: '#notificaciones', 
                     color: resultColor, 
                     message: "**${currentBuild.currentResult}**: Job ${env.JOB_NAME} build ${env.BUILD_NUMBER}\nMore Info at: ${env.BUILD_URL}"
                 )
