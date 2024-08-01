@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         //configuración de la herramienta
-        scannerHome = tool 'Sonar'
+        scannerHome = tool 'Sonar Scanner'
     }
 
     stages {
