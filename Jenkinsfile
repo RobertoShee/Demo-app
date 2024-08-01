@@ -1,50 +1,85 @@
 pipeline {
     agent any
 
-    stage('SonarQube Analysis') {
-            steps {
-                script {
-                    def mvn = tool 'Maven 3.8.1' // Usa el nombre exacto configurado
-                    withSonarQubeEnv() {
-                        sh "${mvn}/bin/mvn clean verify sonar:sonar -Dsonar.host.url=http://${SONARQUBE_URL}:9000 -Dsonar.projectKey=demo-qube -Dsonar.projectName=demo-qube"
-                    }
-                }
-            }
-        }
+    environment {
+        //configuración de la herramienta
+        scannerHome = tool 'Sonar'
+    }
 
     stages {
         
-          stage('SCM') {
-            checkout scm
-          }
-            
-          stage('SonarQube Analysis') {
-            def mvn = tool 'Default Maven';
-            withSonarQubeEnv() {
-              sh "${mvn}/bin/mvn clean verify sonar:sonar -Dsonar.projectKey=con-jenkins -Dsonar.projectName='con-jenkins'"
-            }
-          }
-
         stage('Build') {
             steps {
                 echo 'Building...'
                 // Aquí puedes agregar tus comandos de compilación, por ejemplo:
-                // sh 'mvn clean install'
+                sh 'mvn clean install'
             }
         }
+
         stage('Test') {
             steps {
                 echo 'Testing...'
                 // Aquí puedes agregar tus comandos de prueba, por ejemplo:
-                // sh 'mvn test'
+                sh 'mvn test'
             }
         }
-        stage('Deploy') {
+
+        stage('Sonar Analysis') {
             steps {
-                echo 'Deploying...'
-                // Aquí puedes agregar tus comandos de despliegue, por ejemplo:
-                // sh 'kubectl apply -f deployment.yaml'
+                echo 'Sonar Analysis'
+                withSonarQubeEnv('Sonar') {
+                    sh """
+                        ${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=demo-qube -Dsonar.sources=. -Dsonar.host.url=http://${SONARQUBE_URL}:9000 -Dsonar.junit.reportsPath=target/surefire-reports/ -Dsonar.jacoco.reportsPath=target/jacoco.exec -Dsonar.java.checkstyle.reportPaths=target/checkstyle-result.xml
+                    """
+                }
+            }
+        }
+
+        stage('Quality Gate') {
+            steps {
+                sleep(10)
+                timeout(time: 3, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
+
+        stage('Upload Artifact') {
+            steps {
+                nexusArtifactUploader(
+                    nexusVersion: 'nexus3',
+                    protocol: 'http',
+                    nexusUrl: '192.168.100.6:8081',
+                    groupId: 'QA',
+                    version: """${env.BUILD_ID}-${env.BUILD_TIMESTAMP}""",
+                    repository: 'maven-demo-app',
+                    credentialsId: 'nexus-auth',
+                    artifacts: [
+                        [artifactId: 'webApp',
+                        classifier: '',
+                        file: 'target/demo-app.war',
+                        type: 'war'],
+                    ]
+                )
+            }
+        }
+    } 
+
+    post {
+        always {
+            script {
+                def COLOR_MAP = [
+                    'SUCCESS': 'good',
+                    'FAILURE': 'danger'
+                ]
+                def resultColor = COLOR_MAP[currentBuild.currentResult.toString()]
+                slackSend(
+                    channel: '#tarea-clase-10', 
+                    color: resultColor, 
+                    message: "**${currentBuild.currentResult}**: Job ${env.JOB_NAME} build ${env.BUILD_NUMBER}\nMore Info at: ${env.BUILD_URL}"
+                )
             }
         }
     }
-}
+}  
